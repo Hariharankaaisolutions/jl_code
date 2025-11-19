@@ -5,6 +5,7 @@
 !*.py
 !*.env
 !*.pt
+!*.properties
 
 # Allow this file itself
 !.gitignore
