@@ -2,40 +2,33 @@
 Configuration file for application settings
 """
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
-
-# Load environment variables from .env file (optional but recommended)
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # python-dotenv not installed, use system env vars
 
 
 class EmailConfig:
-    """Email configuration"""
-    SMTP_SERVER = "smtp.gmail.com"
+    """Email configuration using Zoho SMTP"""
+    SMTP_SERVER = "smtp.zoho.in"
     SMTP_PORT = 587
     USERNAME = os.getenv("SMTP_USERNAME")
     PASSWORD = os.getenv("SMTP_PASSWORD")
-    FROM_EMAIL = os.getenv("SMTP_USERNAME")  # Same as username for Gmail
-    TO_EMAIL = os.getenv("TO_EMAIL")
+    FROM_EMAIL = USERNAME  # Zoho uses the same as username
+    TO_EMAIL = os.getenv("TO_EMAIL").replace(" ", "").split(",")
     
     @classmethod
     def validate(cls):
-        """Validate that all required email settings are configured"""
+        """Validate required environment variables"""
         if not all([cls.USERNAME, cls.PASSWORD, cls.TO_EMAIL]):
             raise ValueError(
-                "Email configuration incomplete. Please set environment variables:\n"
+                "Email configuration incomplete. Please set the following in your environment:\n"
                 "SMTP_USERNAME, SMTP_PASSWORD, TO_EMAIL"
             )
 
 
 class DetectionConfig:
-    """Detection and model configuration"""
+    """Detection and YOLO model configuration"""
     YOLOV5_PATH = "yolov5"
     MODEL_PATH = "jlcam1final.pt"
     FRAME_WIDTH = 640
@@ -48,7 +41,7 @@ class LogConfig:
     """Logging configuration"""
     LOG_DIR = "logs"
     LOG_FILE = "app.log"
-    MAX_BYTES = 5 * 1024 * 1024  # 5MB
+    MAX_BYTES = 5 * 1024 * 1024  # 5 MB
     BACKUP_COUNT = 3
 
 

@@ -21,6 +21,8 @@ from datetime import datetime
 import time
 import shutil
 import psutil  # for memory usage
+from raw_video import start_raw_recording, stop_raw_recording
+
 
 from session import session_manager
 from delete_video import cleanup_old_videos  # keep name as provided
@@ -767,6 +769,12 @@ async def start_detection(data: DetectionRequest):
             video_url=stream_url,
             transaction_id=data.transaction_id,
         )
+        # 🔴 Start RAW RTMP Recording (save raw stream)
+        try:
+            start_raw_recording(data.transaction_id, stream_url)
+            logger.info(f"RAW recording started for transaction={data.transaction_id}")
+        except Exception:
+            logger.exception("Failed to start RAW RTMP recording")
 
         # create detection task
         asyncio.create_task(detect_objects(stream_url, data.session_id))
@@ -828,6 +836,12 @@ async def stop_detection(data: StopRequest):
 
         session_manager.stop_session(data.session_id)
         logger.info("🛑 Stop request processed for session=%s", data.session_id)
+
+        try:
+            stop_raw_recording(data.transaction_id)
+            logger.info(f"RAW recording stopped for transaction={data.transaction_id}")
+        except Exception:
+            logger.exception("Failed to stop RAW RTMP recording")
 
         return {
             "message": "Detection stopped",

@@ -1,4 +1,4 @@
-# mail.py — SmartLogger Edition (Message-Code Only)
+# mail.py — SmartLogger Edition
 # =================================================
 
 from smart_logger import get_logger
@@ -15,7 +15,7 @@ from message_loader import Messages
 def send_email(subject, body):
     """
     Send email using SMTP with full SmartLogger instrumentation.
-    All logs come from messages.properties through Messages.get().
+    Logs are taken from messages.properties via Messages.get().
     """
 
     # Preparing to send
@@ -25,7 +25,7 @@ def send_email(subject, body):
 
     try:
         # ---------------------------------------------------------
-        # Construct MIME email
+        # Construct MIME message
         # ---------------------------------------------------------
         logger.debug(
             Messages.get(
@@ -38,13 +38,11 @@ def send_email(subject, body):
 
         msg = MIMEMultipart()
         msg["From"] = EmailConfig.FROM_EMAIL
-        msg["To"] = EmailConfig.TO_EMAIL
+        msg["To"] = ", ".join(EmailConfig.TO_EMAIL)
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
 
-        logger.debug(
-            Messages.get("MAIL.SEND.003.DEBUG")
-        )
+        logger.debug(Messages.get("MAIL.SEND.003.DEBUG"))
 
         # ---------------------------------------------------------
         # Connect to SMTP
@@ -57,52 +55,41 @@ def send_email(subject, body):
             )
         )
 
-        server = smtplib.SMTP(
+        with smtplib.SMTP(
             EmailConfig.SMTP_SERVER,
             EmailConfig.SMTP_PORT
-        )
+        ) as server:
 
-        logger.debug(
-            Messages.get("MAIL.SEND.005.DEBUG")
-        )
-        server.starttls()
+            logger.debug(Messages.get("MAIL.SEND.005.DEBUG"))
+            server.starttls()
 
-        logger.debug(
-            Messages.get("MAIL.SEND.006.DEBUG")
-        )
+            logger.debug(Messages.get("MAIL.SEND.006.DEBUG"))
 
-        # ---------------------------------------------------------
-        # Login
-        # ---------------------------------------------------------
-        logger.debug(
-            Messages.get(
-                "MAIL.SEND.007.DEBUG",
-                username=EmailConfig.USERNAME,
+            # ---------------------------------------------------------
+            # Login
+            # ---------------------------------------------------------
+            logger.debug(
+                Messages.get(
+                    "MAIL.SEND.007.DEBUG",
+                    username=EmailConfig.USERNAME,
+                )
             )
-        )
+            server.login(
+                EmailConfig.USERNAME,
+                EmailConfig.PASSWORD
+            )
 
-        server.login(
-            EmailConfig.USERNAME,
-            EmailConfig.PASSWORD
-        )
+            logger.debug(Messages.get("MAIL.SEND.008.DEBUG"))
 
-        logger.debug(
-            Messages.get("MAIL.SEND.008.DEBUG")
-        )
-
-        # ---------------------------------------------------------
-        # Send email
-        # ---------------------------------------------------------
-        logger.debug(
-            Messages.get("MAIL.SEND.009.DEBUG")
-        )
-
-        server.sendmail(
-            EmailConfig.FROM_EMAIL,
-            EmailConfig.TO_EMAIL,
-            msg.as_string()
-        )
-        server.quit()
+            # ---------------------------------------------------------
+            # Send email
+            # ---------------------------------------------------------
+            logger.debug(Messages.get("MAIL.SEND.009.DEBUG"))
+            server.sendmail(
+                EmailConfig.FROM_EMAIL,
+                EmailConfig.TO_EMAIL,
+                msg.as_string()
+            )
 
         logger.info(
             Messages.get("MAIL.SEND.010.INFO", subject=subject)

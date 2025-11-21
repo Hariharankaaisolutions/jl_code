@@ -365,9 +365,32 @@ class SessionManager:
                 Messages.get("SESSION.CLEANUP.011.ERROR", session_id=session_id)
             )
 
-        logger.info(
-            Messages.get("SESSION.STOP.015.INFO", session_id=session_id)
-        )
+        try:
+            counts = self.sessions[session_id]["counts"]
+
+            send_email(
+                subject=f"📊 JL-CAM — Session Completed Successfully",
+                body=(
+                    f"🕒 End Time:{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    f"📦 Final Counts:\n"
+                    f"   • 👜 Bag: {counts['bag']}\n"
+                    f"   • 🛒 Trolley: {counts['trolley']}\n\n"
+                    f"🔔 This is an automated notification from JL-CAM System."
+                )
+            )
+            logger.info(
+                Messages.get("SESSION.EMAIL.001.INFO", session_id=session_id)
+            )
+
+        except Exception:
+            logger.exception(
+                Messages.get("SESSION.EMAIL.002.ERROR", session_id=session_id)
+            )
+
+
+            logger.info(
+                Messages.get("SESSION.STOP.015.INFO", session_id=session_id)
+            )
 
     # ----------------------------------------------------------------------
     # Counts Management

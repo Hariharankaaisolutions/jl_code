@@ -28,6 +28,9 @@ DB_PASS = CONFIG.get("DB_PASSWORD", "yourpassword")
 
 IMAGE_DIR = CONFIG.get("IMAGE_DIR", "/opt/vchanel/fastback/database/detected_frames")
 
+# ✅ NEW externalised image base URL
+IMAGE_BASE_URL = CONFIG.get("IMAGE_BASE_URL", "http://localhost:9000/images")
+
 MQTT_BROKER = CONFIG.get("MQTT_BROKER", "localhost")
 MQTT_PORT = int(CONFIG.get("MQTT_PORT", "1883"))
 MQTT_TOPIC_REQUEST = CONFIG.get("MQTT_DASHBOARD_REQUEST", "vchanel/loading/request")
@@ -85,7 +88,8 @@ def fetch_data_from_postgres():
                         "bale": r["bale_count"],
                         "bag": r["bag_count"],
                         "trolley": r["trolley_count"],
-                        "imageUrl": f"http://192.168.1.7:9000/images/{filename}" if filename else None
+                        # ✅ updated externalised URL
+                        "imageUrl": f"{IMAGE_BASE_URL}/{filename}" if filename else None
                     })
                 return data
     except Exception as e:
@@ -129,7 +133,8 @@ def fetch_latest_transaction():
                     "bale": record["bale_count"],
                     "bag": record["bag_count"],
                     "trolley": record["trolley_count"],
-                    "imageUrl": f"http://192.168.1.7:9000/images/{filename}" if filename else None
+                    # ✅ updated
+                    "imageUrl": f"{IMAGE_BASE_URL}/{filename}" if filename else None
                 }
     except Exception as e:
         logger.error(f"Database Error in fetch_latest_transaction: {e}", exc_info=True)
@@ -172,7 +177,8 @@ async def fetch_today_transactions():
                         "bale": r["bale_count"],
                         "bag": r["bag_count"],
                         "trolley": r["trolley_count"],
-                        "imageUrl": f"http://192.168.1.7:9000/images/{filename}" if filename else None
+                        # ✅ updated
+                        "imageUrl": f"{IMAGE_BASE_URL}/{filename}" if filename else None
                     })
                 return data
     except Exception as e:
@@ -257,6 +263,7 @@ async def fetch_data_grouped():
             "bale": record["bale"],
             "bag": record["bag"],
             "trolley": record["trolley"],
+            # already updated above
             "imageUrl": record["imageUrl"]
         })
 

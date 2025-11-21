@@ -5,7 +5,7 @@ from pathlib import Path
 import traceback
 import re
 
-app = FastAPI(title="Camera URL Validator", version="2.0")
+app = FastAPI(title="Camera URL Validator", version="2.1")
 
 RTSP_FILE = Path("/opt/vchanel/config/rtsp.properties")
 
@@ -28,6 +28,9 @@ class ValidateResponse(BaseModel):
     ok: bool
     message: str
     url: str | None = None
+    fps: float | None = None
+    resolution: str | None = None
+    codec: str | None = None
 
 
 # ===================================================================
@@ -35,43 +38,26 @@ class ValidateResponse(BaseModel):
 # ===================================================================
 
 def detect_ffmpeg_error(output: str) -> str:
-    """
-    Analyze ffmpeg stderr and classify the issue.
-    Returns a user-friendly message.
-    """
-
     patterns = {
-
-        # Authentication / wrong credentials
         r"401 Unauthorized": "Incorrect username or password.",
-        r"403 Forbidden": "Access denied by camera (403).",
+        r"403 Forbidden": "Access denied by camera.",
         r"authorization failed": "RTSP authorization failed.",
-
-        # No stream found
-        r"404 Not Found": "Stream path does not exist on camera.",
+        r"404 Not Found": "Stream path does not exist.",
         r"Stream not found": "Camera stream not found.",
         r"Unknown error occurred": "Camera refused the stream.",
-
-        # No video data / empty stream
-        r"Could not find codec parameters": "Camera is online but not sending video data.",
-        r"Invalid data found when processing input": "Camera returned invalid video data.",
+        r"Could not find codec parameters": "Camera online but not sending video.",
+        r"Invalid data found when processing input": "Camera returned invalid data.",
         r"nonexisting PPS": "Camera stream is corrupted.",
-        r"Missing reference picture": "Video stream has no usable frames.",
-
-        # Network issues
-        r"Connection refused": "Camera refused the connection.",
-        r"Connection timed out": "Camera not responding on RTSP port.",
-        r"Invalid argument": "Malformed RTSP URL or unsupported stream.",
-        r"Network unreachable": "Network error reaching the camera.",
-        r"Server returned 5\d\d": "Camera returned a server error.",
-
-        # Freeze / no packets
+        r"Missing reference picture": "Video stream has no keyframes.",
+        r"Connection refused": "Camera refused connection.",
+        r"Connection timed out": "Camera not responding.",
+        r"Invalid argument": "Malformed RTSP URL.",
+        r"Network unreachable": "Network error reaching camera.",
+        r"Server returned 5\d\d": "Camera returned server error.",
         r"Input/output error": "Camera stopped sending packets.",
-        r"failed to decode": "Camera is sending unreadable frames.",
-
-        # Transport issues
-        r"method DESCRIBE failed": "Camera did not accept RTSP DESCRIBE request.",
-        r"method SETUP failed": "Camera refused SETUP. Wrong path or offline.",
+        r"failed to decode": "Camera sending unreadable frames.",
+        r"method DESCRIBE failed": "Camera did not accept DESCRIBE.",
+        r"method SETUP failed": "Camera refused SETUP.",
     }
 
     for pattern, message in patterns.items():
@@ -82,26 +68,46 @@ def detect_ffmpeg_error(output: str) -> str:
 
 
 # ===================================================================
+# STREAM INFO PARSER
+# ===================================================================
+
+def parse_stream_info(stderr: str):
+    """
+    Extract codec, resolution, fps from FFmpeg stderr.
+    """
+    codec = None
+    resolution = None
+    fps = None
+
+    pattern = r"Video:\s*([a-zA-Z0-9_]+).*?(\d{2,5}x\d{2,5}).*?(\d+(\.\d+)?)[ ]*fps"
+    match = re.search(pattern, stderr, re.IGNORECASE)
+
+    if match:
+        codec = match.group(1)
+        resolution = match.group(2)
+        fps = float(match.group(3))
+
+    return codec, resolution, fps
+
+
+# ===================================================================
 # HELPERS
 # ===================================================================
 
 def ping_ip(ip: str) -> bool:
-    """Ping the camera."""
     try:
         return subprocess.call(
             ["ping", "-c", "1", "-W", "1", ip],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         ) == 0
-    except Exception as e:
-        print("[PING ERROR]", e)
+    except:
         return False
 
 
-def test_rtsp_ffmpeg(url: str) -> (bool, str):
+def test_rtsp_ffmpeg(url: str):
     """
-    Returns (success, message)
-    message may contain ffmpeg diagnostics.
+    Returns: (success, message, codec, resolution, fps)
     """
 
     cmd = [
@@ -124,34 +130,33 @@ def test_rtsp_ffmpeg(url: str) -> (bool, str):
 
         stderr_output = proc.stderr
 
-        # Debug log
-        print("\n======= RAW FFMPEG OUTPUT =======")
+        # Clean stderr log
+        print("\n================= RAW FFMPEG OUTPUT =================")
         print(stderr_output)
-        print("=================================\n")
+        print("=====================================================\n")
+
+        codec, resolution, fps = parse_stream_info(stderr_output)
 
         if proc.returncode == 0:
-            return True, "Stream OK"
+            return True, "Stream OK", codec, resolution, fps
 
-        # Process error patterns
-        return False, detect_ffmpeg_error(stderr_output)
+        return False, detect_ffmpeg_error(stderr_output), codec, resolution, fps
 
     except subprocess.TimeoutExpired:
-        return False, "Camera timed out while reading video data."
+        return False, "Camera timed out while reading video.", None, None, None
 
     except FileNotFoundError:
-        return False, "ffmpeg is not installed on the server."
+        return False, "ffmpeg is not installed.", None, None, None
 
     except Exception as e:
-        print("[FFMPEG UNEXPECTED ERROR]", e)
+        print("[FFMPEG ERROR]", e)
         print(traceback.format_exc())
-        return False, "Unexpected error while validating RTSP stream."
+        return False, "Unexpected FFmpeg error.", None, None, None
 
 
 def save_rtsp(camera_angle: int, url: str):
-    """Store RTSP URL in file."""
     try:
         RTSP_FILE.parent.mkdir(parents=True, exist_ok=True)
-
         cam_map = {1: "", 2: ""}
 
         if RTSP_FILE.exists():
@@ -171,8 +176,7 @@ def save_rtsp(camera_angle: int, url: str):
 
     except Exception as e:
         print("[FILE WRITE ERROR]", e)
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Failed to save RTSP URL to configuration file.")
+        raise HTTPException(status_code=500, detail="Failed to save RTSP URL.")
 
 
 # ===================================================================
@@ -183,38 +187,63 @@ def save_rtsp(camera_angle: int, url: str):
 def validate_and_update(req: ValidateRequest):
 
     try:
-        mode = req.mode.lower().strip()
+        mode = req.mode.lower()
 
-        # ---------------- URL BUILDING ----------------
+        # ---------------- URL BUILD ----------------
         if mode == "factory":
             auth = f"{req.userid}:{req.password}@" if req.userid or req.password else ""
             full_url = f"{req.protocol}://{auth}{req.ip}:{req.port}"
-
         elif mode == "office":
             full_url = f"{req.protocol}://{req.ip}:{req.port}/mystream"
-
         else:
-            raise HTTPException(status_code=400, detail="Invalid mode: choose 'factory' or 'office'.")
+            raise HTTPException(status_code=400, detail="Invalid mode.")
 
-        print(f"[VALIDATING] mode={mode}  url={full_url}")
+        # Print URL header
+        print("\n================= VALIDATION START =================")
+        print(f"Generated URL: {full_url}")
+        print("====================================================")
 
-        # ---------------- 1️⃣ PING CHECK ----------------
+        # ---------------- PING ----------------
         if not ping_ip(req.ip):
-            return ValidateResponse(ok=False, message="Camera unreachable (Ping failed).", url=None)
+            print("[PING FAILED] Camera unreachable.\n")
+            return ValidateResponse(ok=False, message="Camera unreachable (Ping failed).")
 
-        # ---------------- 2️⃣ RTSP VALIDATION ----------------
+        # ---------------- FFMPEG TEST ----------------
+        codec, resolution, fps = None, None, None
+
         if req.protocol.lower() == "rtsp":
-            success, msg = test_rtsp_ffmpeg(full_url)
-            if not success:
-                return ValidateResponse(ok=False, message=msg, url=None)
+            success, msg, codec, resolution, fps = test_rtsp_ffmpeg(full_url)
 
-        # ---------------- 3️⃣ SAVE URL ----------------
+            # Neat formatted log block
+            print("\n================= CAMERA STREAM DETAILS =================")
+            print(f"Generated URL   : {full_url}")
+            print(f"Video Codec     : {codec if codec else 'N/A'}")
+            print(f"Resolution      : {resolution if resolution else 'N/A'}")
+            print(f"Frame Rate (FPS): {fps if fps else 'N/A'}")
+            print("=========================================================\n")
+
+            if not success:
+                return ValidateResponse(
+                    ok=False,
+                    message=msg,
+                    url=None,
+                    codec=codec,
+                    resolution=resolution,
+                    fps=fps
+                )
+
+        # ---------------- SAVE URL ----------------
         save_rtsp(req.camera_angle, full_url)
+
+        print("================= VALIDATION SUCCESS =================\n")
 
         return ValidateResponse(
             ok=True,
             message="Camera validated successfully.",
-            url=full_url
+            url=full_url,
+            codec=codec,
+            resolution=resolution,
+            fps=fps
         )
 
     except HTTPException:
@@ -223,4 +252,4 @@ def validate_and_update(req: ValidateRequest):
     except Exception as e:
         print("[SERVER ERROR]", e)
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

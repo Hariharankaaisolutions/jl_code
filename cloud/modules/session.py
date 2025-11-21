@@ -1,13 +1,15 @@
 # modules/session.py
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 import psycopg2
 
 from utils_config_loader import load_properties
 from logger import get_logger
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 router = APIRouter(tags=["Session Auth"])
 
