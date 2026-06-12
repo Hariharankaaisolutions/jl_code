@@ -94,6 +94,11 @@ def register_user(data: RegisterRequest):
     otp = str(random.randint(1000, 9999))
     otp_store[data.device_unique_id] = otp
 
+    logger.warning(
+        f"[OTP GENERATED] DeviceID={data.device_unique_id} | "
+        f"User={data.name} | Role={data.role} | OTP={otp}"
+    )
+
     # 2️⃣ Fetch approver emails
     conn = get_connection()
     cur = conn.cursor()
@@ -185,6 +190,7 @@ def register_user(data: RegisterRequest):
 def verify_otp(req: OTPVerifyRequest):
     device_id = req.registration_data.device_unique_id
     stored_otp = otp_store.get(device_id)
+
 
     if stored_otp != req.otp:
         raise HTTPException(status_code=400, detail="Invalid OTP")

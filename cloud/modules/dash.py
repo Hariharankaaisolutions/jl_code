@@ -23,10 +23,11 @@ DB_NAME = CONFIG.get("DB_NAME", "jlmill")
 DB_USER = CONFIG.get("DB_USER", "kaai")
 DB_PASS = CONFIG.get("DB_PASSWORD", "yourpassword")
 
-IMAGE_DIR = CONFIG.get("IMAGE_DIR", "/opt/vchanel/fastback/cam1_app_1/detected_frames")
+IMAGE_DIR     = CONFIG.get("IMAGE_DIR", "/opt/vchanel/fastback/database/detected_frames")
+IMAGE_BASE_URL = CONFIG.get("IMAGE_BASE_URL", "http://172.30.30.169:9000/images")
 
 MQTT_BROKER = CONFIG.get("MQTT_BROKER", "localhost")
-MQTT_PORT = int(CONFIG.get("MQTT_PORT", "1883"))
+MQTT_PORT   = int(CONFIG.get("MQTT_PORT", "1883"))
 
 TOP_OPEN = CONFIG.get("MQTT_DASH_TOPIC_OPEN", "app/dashboard/open")
 TOP_PUSH = CONFIG.get("MQTT_DASH_TOPIC_PUSH", "app/dashboard/data")
@@ -34,7 +35,38 @@ TOP_PUSH = CONFIG.get("MQTT_DASH_TOPIC_PUSH", "app/dashboard/data")
 client = mqtt.Client()
 
 active_sessions: dict[str, str] = {}
-push_threads: dict[str, threading.Thread] = {}
+push_threads:    dict[str, threading.Thread] = {}
+
+
+# ===============================================================
+# Helper: raw image_path column → list of full image URLs
+#
+# Handles all three possible formats stored in the DB:
+#   None / ""                    → []
+#   JSON array string (new)      → '["path/a.jpg","path/b.jpg"]'
+#   Plain single string (legacy) → "path/a.jpg"
+# ===============================================================
+def build_image_urls(raw_image_path) -> list:
+    if not raw_image_path:
+        return []
+
+    value = str(raw_image_path).strip()
+
+    # ── new multi-image JSON array ───────────────────────────────
+    if value.startswith("["):
+        try:
+            paths = json.loads(value)
+            return [
+                f"{IMAGE_BASE_URL}/{os.path.basename(p)}"
+                for p in paths if p
+            ]
+        except (json.JSONDecodeError, TypeError):
+            logger.warning(f"Failed to parse image_path JSON: {value!r}")
+            return []
+
+    # ── legacy single-path string ────────────────────────────────
+    filename = os.path.basename(value)
+    return [f"{IMAGE_BASE_URL}/{filename}"] if filename else []
 
 
 # ===============================================================
@@ -53,33 +85,33 @@ def fetch_today():
     """
     try:
         with psycopg2.connect(
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS
+            host=DB_HOST, database=DB_NAME,
+            user=DB_USER, password=DB_PASS
         ) as conn:
-
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query)
                 rows = cur.fetchall()
 
         result = []
         for r in rows:
-            fname = os.path.basename(r["image_path"]) if r["image_path"] else None
+            image_urls = build_image_urls(r["image_path"])
             result.append({
                 "transaction_id": r["transaction_id"],
-                "name": r["name"],
-                "role": r["role"],
-                "camera": r["cam"],
-                "vehicleNumber": r["vehicle_number"],
-                "date": str(r["date"]),
-                "startTime": str(r["start_time"]),
-                "endTime": str(r["end_time"]),
-                "box": r["box_count"],
-                "bale": r["bale_count"],
-                "bag": r["bag_count"],
-                "trolley": r["trolley_count"],
-                "imageUrl": f"http://192.168.1.7:9021/images/{fname}" if fname else None
+                "name":           r["name"],
+                "role":           r["role"],
+                "camera":         r["cam"],
+                "vehicleNumber":  r["vehicle_number"],
+                "date":           str(r["date"]),
+                "startTime":      str(r["start_time"]),
+                "endTime":        str(r["end_time"]),
+                "box":            r["box_count"],
+                "bale":           r["bale_count"],
+                "bag":            r["bag_count"],
+                "trolley":        r["trolley_count"],
+                # ✅ multiple images (new)
+                "imageUrls": image_urls,
+                # ✅ first image for backwards compat
+                "imageUrl":  image_urls[0] if image_urls else None,
             })
         return result
 
@@ -108,33 +140,33 @@ def fetch_last_7_days():
     """
     try:
         with psycopg2.connect(
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS
+            host=DB_HOST, database=DB_NAME,
+            user=DB_USER, password=DB_PASS
         ) as conn:
-
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query)
                 rows = cur.fetchall()
 
         grouped = defaultdict(list)
         for r in rows:
-            fname = os.path.basename(r["image_path"]) if r["image_path"] else None
+            image_urls = build_image_urls(r["image_path"])
             item = {
                 "transaction_id": r["transaction_id"],
-                "name": r["name"],
-                "role": r["role"],
-                "camera": r["cam"],
-                "vehicleNumber": r["vehicle_number"],
-                "date": str(r["date"]),
-                "startTime": str(r["start_time"]),
-                "endTime": str(r["end_time"]),
-                "box": r["box_count"],
-                "bale": r["bale_count"],
-                "bag": r["bag_count"],
-                "trolley": r["trolley_count"],
-                "imageUrl": f"http://192.168.1.7:9021/images/{fname}" if fname else None
+                "name":           r["name"],
+                "role":           r["role"],
+                "camera":         r["cam"],
+                "vehicleNumber":  r["vehicle_number"],
+                "date":           str(r["date"]),
+                "startTime":      str(r["start_time"]),
+                "endTime":        str(r["end_time"]),
+                "box":            r["box_count"],
+                "bale":           r["bale_count"],
+                "bag":            r["bag_count"],
+                "trolley":        r["trolley_count"],
+                # ✅ multiple images (new)
+                "imageUrls": image_urls,
+                # ✅ first image for backwards compat
+                "imageUrl":  image_urls[0] if image_urls else None,
             }
             grouped[str(r["date"])].append(item)
 
@@ -153,19 +185,19 @@ def push_loop(userId: str, sessionId: str):
     logger.info(f"Starting push loop for {userId}/{sessionId}")
 
     fail_count = 0
-    out_topic = f"{TOP_PUSH}/{userId}/{sessionId}"
+    out_topic  = f"{TOP_PUSH}/{userId}/{sessionId}"
 
     while True:
         if active_sessions.get(userId) != sessionId:
             logger.info(f"Session changed → Stopping push for {userId}/{sessionId}")
             break
 
-        today = fetch_today()
+        today   = fetch_today()
         history = fetch_last_7_days()
 
         payload = json.dumps({
-            "today": today,
-            "history": history
+            "today":   today,
+            "history": history,
         })
 
         try:
@@ -204,8 +236,8 @@ def on_message(client, userdata, msg):
     logger.debug(f"MQTT Received: {msg.topic} → {payload}")
 
     try:
-        data = json.loads(payload)
-        userId = data.get("userId")
+        data      = json.loads(payload)
+        userId    = data.get("userId")
         sessionId = data.get("sessionId")
     except Exception:
         logger.error("Invalid MQTT JSON", exc_info=True)
@@ -217,7 +249,6 @@ def on_message(client, userdata, msg):
 
     active_sessions[userId] = sessionId
 
-    # Restart thread
     if userId in push_threads:
         logger.info(f"Restarting push thread for {userId}")
 
@@ -238,12 +269,11 @@ def mqtt_thread():
         logger.error(f"MQTT connection error: {e}", exc_info=True)
 
 
-# Start MQTT in background
 threading.Thread(target=mqtt_thread, daemon=True).start()
 
 
 # ===============================================================
-# SIMPLE HEALTH ENDPOINT
+# HEALTH ENDPOINT
 # ===============================================================
 
 @router.get("/health")

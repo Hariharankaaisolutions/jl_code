@@ -1,29 +1,57 @@
-# ====================================================================
-# GITIGNORE FOR /opt/vchanel - FINAL VERSION WITH REACT EXCLUSION
-# ====================================================================
+# Videos and media
+*.mp4
+*.avi
+*.mkv
+*.ts
+*.jpg
+*.jpeg
+*.png
+*.gif
 
-# 1. EXCLUDE the 'old version' directory completely
-old version/
+# Logs
+*.log
+*.txt
+logs/
+*.log.zip
 
-# 2. EXCLUDE all other non-required files in the root
-*.*
+# Model weights
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt
 
-# 3. EXCLUDE the node_modules folder from the React project (myapp)
-#    This is essential for any Node.js/React/npm project!
-myapp/node_modules/
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
 
-# 4. EXCLUDE most content inside the 'fastback' directory
-#    (Ensures all subdirectories inside fastback are ignored)
-fastback/*/
+# Virtual environments
+venv/
+.venv/
+env/
 
-# 5. EXCEPTION: NEGATE the ignore rules for the specific directories we want to keep
-#    This makes Git track the two required application folders inside fastback.
-!fastback/cam1_app_1/
-!fastback/cam2_app_1/
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# 6. EXCEPTION: NEGATE the ignore rules for the required file types in ANY directory
-!*.py
-!*.env
-!*.properties
-!*.pt
-!*.gitignore
+# Saved videos/frames
+detection_videos/
+first_frames/
+counted_frames/
+reinforcement_learning/
+
+# Temp files
+*.tmp
+*.bak
+*.swp
+.DS_Store
+
+# CSV metrics
+*.csv

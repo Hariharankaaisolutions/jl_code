@@ -83,82 +83,106 @@ def getmap(key, item_sep=",", kv_sep=":"):
 
 
 # ------------------------- YOLO / Detection ------------------------- #
-YOLOV5_PATH = get("YOLOV5_PATH", "yolov5")
-MODEL_PATH = get("MODEL_PATH", "jlcam2final.pt")
-CONF_THRES = getfloat("CONF_THRES", 0.4)
-IOU_THRESHOLD = getfloat("IOU_THRESHOLD", 0.45)
-FRAME_WIDTH = getint("FRAME_WIDTH", 640)
-FRAME_HEIGHT = getint("FRAME_HEIGHT", 480)
-CROSS_LINE_X = getint("CROSS_LINE_X", 400)
-ALLOWED_CLASSES = getlist("ALLOWED_CLASSES") or ["bag", "trolley"]
-MAX_DETECTIONS_PER_FRAME = getint("MAX_DETECTIONS_PER_FRAME", 50)
+YOLOV5_PATH             = get("YOLOV5_PATH",              "yolov5")
+# Single model path (replaces BOX_MODEL_PATH / BALE_MODEL_PATH)
+MODEL_PATH              = get("MODEL_PATH",               "yolo_instance_box.pt")
+# Keep old names as aliases pointing to same single model (backward compat)
+BOX_MODEL_PATH          = MODEL_PATH
+BALE_MODEL_PATH         = MODEL_PATH
+CONF_THRES              = getfloat("CONF_THRES",           0.4)
+IOU_THRESHOLD           = getfloat("IOU_THRESHOLD",        0.45)
+FRAME_WIDTH             = getint("FRAME_WIDTH",            640)
+FRAME_HEIGHT            = getint("FRAME_HEIGHT",           480)
+CROSS_LINE_X            = getint("CROSS_LINE_X",           300)
+ENTRY_LINE_X            = getint("ENTRY_LINE_X",           600)
+GHOST_MATCH_DIST_PX     = getint("GHOST_MATCH_DIST_PX",    80)
+GHOST_MAX_AGE_FRAMES    = getint("GHOST_MAX_AGE_FRAMES",   45)
+ALLOWED_CLASSES         = getlist("ALLOWED_CLASSES") or ["box", "bale", "trolley"]
+MAX_DETECTIONS_PER_FRAME= getint("MAX_DETECTIONS_PER_FRAME", 50)
+
+# ------------------------- Detection Mode ------------------------- #
+# DETECTION_MODE: "rgb" (default) or "grayscale"
+# When grayscale, inference runs on a grayscale frame but display/saves
+# can independently be color or grayscale via the switches below.
+DETECTION_MODE           = get("DETECTION_MODE", "rgb").strip().lower()
+
+# These switches only matter when DETECTION_MODE=grayscale.
+# When DETECTION_MODE=rgb, everything is always color regardless.
+RAW_VIDEO_GRAYSCALE      = getbool("RAW_VIDEO_GRAYSCALE",      False)
+DETECTED_VIDEO_GRAYSCALE = getbool("DETECTED_VIDEO_GRAYSCALE", False)
+DETECTED_FRAME_GRAYSCALE = getbool("DETECTED_FRAME_GRAYSCALE", False)
 
 # ------------------------- Tracker ------------------------- #
-TRACKER_MAX_DISTANCE = getint("TRACKER_MAX_DISTANCE", 50)
-TRACKER_MAX_MISSES = getint("TRACKER_MAX_MISSES", 10)
-TRACKER_MIN_HITS = getint("TRACKER_MIN_HITS", 2)
+TRACKER_MAX_DISTANCE    = getint("TRACKER_MAX_DISTANCE",   50)
+TRACKER_MAX_MISSES      = getint("TRACKER_MAX_MISSES",     10)
+TRACKER_MIN_HITS        = getint("TRACKER_MIN_HITS",        2)
 
 # ------------------------- Object mappings ------------------------- #
-BAG_CLASSES = getmap("BAG_CLASSES")
-DEFAULT_COUNTS = getmap("DEFAULT_COUNTS")
+BOX_CLASSES     = getmap("BOX_CLASSES")
+BALE_CLASSES    = getmap("BALE_CLASSES")
+DEFAULT_COUNTS  = getmap("DEFAULT_COUNTS")
 
 # ------------------------- Behavior ------------------------- #
-ENABLE_GUI = getbool("ENABLE_GUI", False)
-ASYNC_SLEEP_TIME = getfloat("ASYNC_SLEEP_TIME", 0.0)
-SAVE_FIRST_FRAME = getbool("SAVE_FIRST_FRAME", True)
-SAVE_COUNTED_FRAME = getbool("SAVE_COUNTED_FRAME", True)
+ENABLE_GUI                  = getbool("ENABLE_GUI",                  False)
+ASYNC_SLEEP_TIME            = getfloat("ASYNC_SLEEP_TIME",           0.0)
+SAVE_FIRST_FRAME            = getbool("SAVE_FIRST_FRAME",            True)
+SAVE_COUNTED_FRAME          = getbool("SAVE_COUNTED_FRAME",          True)
 END_SESSION_ON_VIDEO_FREEZE = getbool("END_SESSION_ON_VIDEO_FREEZE", True)
-MAX_FREEZE_FRAMES = getint("MAX_FREEZE_FRAMES", 30)
+MAX_FREEZE_FRAMES           = getint("MAX_FREEZE_FRAMES",            30)
 
 # ------------------------- Video & Paths ------------------------- #
-VIDEO_SAVE_DIR = get("VIDEO_SAVE_DIR", str(BASE_DIR / "detection_videos"))
-FIRST_FRAME_SAVE_DIR = get("FIRST_FRAME_SAVE_DIR", str(BASE_DIR / "first_frames"))
-COUNTED_FRAME_SAVE_DIR = get("COUNTED_FRAME_SAVE_DIR", str(BASE_DIR / "counted_frames"))
-DETECTED_FRAMES_DIR = get("DETECTED_FRAMES_DIR", str(BASE_DIR / "detected_frames"))
-DAYS_TO_KEEP = getint("DAYS_TO_KEEP", 10)
+VIDEO_SAVE_DIR          = get("VIDEO_SAVE_DIR",          str(BASE_DIR / "detection_videos"))
+FIRST_FRAME_SAVE_DIR    = get("FIRST_FRAME_SAVE_DIR",    str(BASE_DIR / "first_frames"))
+COUNTED_FRAME_SAVE_DIR  = get("COUNTED_FRAME_SAVE_DIR",  str(BASE_DIR / "counted_frames"))
+DETECTED_FRAMES_DIR     = get("DETECTED_FRAMES_DIR",     str(BASE_DIR / "detected_frames"))
+DAYS_TO_KEEP            = getint("DAYS_TO_KEEP",         10)
 
-VIDEO_FRAME_WIDTH = getint("VIDEO_FRAME_WIDTH", 640)
-VIDEO_FRAME_HEIGHT = getint("VIDEO_FRAME_HEIGHT", 480)
-VIDEO_FPS = getint("VIDEO_FPS", 20)
+VIDEO_FRAME_WIDTH       = getint("VIDEO_FRAME_WIDTH",    640)
+VIDEO_FRAME_HEIGHT      = getint("VIDEO_FRAME_HEIGHT",   480)
+VIDEO_FPS               = getint("VIDEO_FPS",            20)
 
 # ------------------------- RTMP ------------------------- #
-RTMP_BASE_URL = get("RTMP_BASE_URL", "rtmp://localhost/live/")
-RTMP_USE_AUTH = getbool("RTMP_USE_AUTH", False)
-RTMP_USERNAME = get("RTMP_USERNAME", "")
-RTMP_PASSWORD = get("RTMP_PASSWORD", "")
+RTMP_BASE_URL   = get("RTMP_BASE_URL",  "rtmp://localhost/live/")
+RTMP_USE_AUTH   = getbool("RTMP_USE_AUTH", False)
+RTMP_USERNAME   = get("RTMP_USERNAME",  "")
+RTMP_PASSWORD   = get("RTMP_PASSWORD",  "")
 
 # ------------------------- FastAPI ------------------------- #
-FASTAPI_TITLE = get("FASTAPI_TITLE", "YOLOv5 Detection Backend")
-ENABLE_DOCS = getbool("ENABLE_DOCS", True)
+FASTAPI_TITLE   = get("FASTAPI_TITLE",  "YOLOv5 Detection Backend")
+ENABLE_DOCS     = getbool("ENABLE_DOCS", True)
 ALLOWED_ORIGINS = getlist("ALLOWED_ORIGINS") or ["*"]
-HOST = get("HOST", "0.0.0.0")
-PORT = getint("PORT", 8001)
+HOST            = get("HOST",           "0.0.0.0")
+PORT            = getint("PORT",        8000)
 
 # ------------------------- Logging (legacy) ------------------------- #
-LOG_DIR = get("LOG_DIR", "/opt/vchanel/logs/")
-LOG_FILE_NAME = get("LOG_FILE_NAME", "backend.log")
-LOG_LEVEL = get("LOG_LEVEL", "INFO")
+LOG_DIR         = get("LOG_DIR",        "/opt/vchanel/logs/")
+LOG_FILE_NAME   = get("LOG_FILE_NAME",  "backend.log")
+LOG_LEVEL       = get("LOG_LEVEL",      "INFO")
 
 # ------------------------- Database ------------------------- #
-DB_NAME = get("DB_NAME", "jlmill")
-DB_USER = get("DB_USER", None)
-DB_PASSWORD = get("DB_PASSWORD", None)
-DB_HOST = get("DB_HOST", "localhost")
-DB_PORT = getint("DB_PORT", 5432)
+DB_NAME         = get("DB_NAME",        "jlmill")
+DB_USER         = get("DB_USER",        None)
+DB_PASSWORD     = get("DB_PASSWORD",    None)
+DB_HOST         = get("DB_HOST",        "localhost")
+DB_PORT         = getint("DB_PORT",     5432)
 
 # ------------------------- MQTT ------------------------- #
-MQTT_ENABLED = getbool("MQTT_ENABLED", True)
-MQTT_HOST = get("MQTT_HOST", "localhost")
-MQTT_PORT = getint("MQTT_PORT", 1883)
-MQTT_TOPIC_COUNTS = get("MQTT_TOPIC_COUNTS", "jl/counts")
-MQTT_TOPIC_BASE = get("MQTT_TOPIC_BASE", "jlmill/sessions/")
-MQTT_USERNAME = get("MQTT_USERNAME", "")
-MQTT_PASSWORD = get("MQTT_PASSWORD", "")
+MQTT_ENABLED        = getbool("MQTT_ENABLED",       True)
+MQTT_HOST           = get("MQTT_HOST",              "localhost")
+MQTT_PORT           = getint("MQTT_PORT",           1883)
+MQTT_TOPIC_COUNTS   = get("MQTT_TOPIC_COUNTS",      "jl/counts")
+MQTT_TOPIC_BASE     = get("MQTT_TOPIC_BASE",        "jlmill/sessions/")
+MQTT_USERNAME       = get("MQTT_USERNAME",          "")
+MQTT_PASSWORD       = get("MQTT_PASSWORD",          "")
 
 # ------------------------- Email (from .env) ------------------------- #
-SMTP_USERNAME = os.getenv("SMTP_USERNAME")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-TO_EMAIL = os.getenv("TO_EMAIL")
+SMTP_USERNAME   = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD   = os.getenv("SMTP_PASSWORD")
+TO_EMAIL        = os.getenv("TO_EMAIL")
 
 # ------------------------- GC ------------------------- #
 ENABLE_GC_CLEANUP = getbool("ENABLE_GC_CLEANUP", True)
+
+# ------------------------- Auto-Stop Scheduler ------------------------- #
+AUTO_STOP_ENABLED   = getbool("AUTO_STOP_ENABLED", True)
+AUTO_STOP_TIME      = get("AUTO_STOP_TIME",        "19:55")

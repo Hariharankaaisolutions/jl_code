@@ -41,6 +41,37 @@ latest_data = []  # Cached data for MQTT responses
 client = mqtt.Client()
 
 
+# ---------------------------------------------------------------
+# Helper: raw image_path column value → list of full image URLs
+#
+# Handles all three possible formats stored in the DB:
+#   None / ""                   → []
+#   JSON array string (new)     → '["path/a.jpg","path/b.jpg"]'
+#   Plain single string (legacy)→ "path/a.jpg"
+# ---------------------------------------------------------------
+def build_image_urls(raw_image_path) -> list:
+    if not raw_image_path:
+        return []
+
+    value = str(raw_image_path).strip()
+
+    # ── new multi-image format ───────────────────────────────────
+    if value.startswith("["):
+        try:
+            paths = json.loads(value)
+            return [
+                f"{IMAGE_BASE_URL}/{os.path.basename(p)}"
+                for p in paths if p
+            ]
+        except (json.JSONDecodeError, TypeError):
+            logger.warning(f"Failed to parse image_path JSON: {value!r}")
+            return []
+
+    # ── legacy single-path string ────────────────────────────────
+    filename = os.path.basename(value)
+    return [f"{IMAGE_BASE_URL}/{filename}"] if filename else []
+
+
 def fetch_data_from_postgres():
     """
     Returns last 7 unique dates of data, ordered by date desc.
@@ -74,7 +105,7 @@ def fetch_data_from_postgres():
 
                 data = []
                 for r in results:
-                    filename = os.path.basename(r["image_path"]) if r["image_path"] else None
+                    image_urls = build_image_urls(r["image_path"])
                     data.append({
                         "transaction_id": r["transaction_id"],
                         "name": r["name"],
@@ -88,8 +119,10 @@ def fetch_data_from_postgres():
                         "bale": r["bale_count"],
                         "bag": r["bag_count"],
                         "trolley": r["trolley_count"],
-                        # ✅ updated externalised URL
-                        "imageUrl": f"{IMAGE_BASE_URL}/{filename}" if filename else None
+                        # ✅ multiple images (new)
+                        "imageUrls": image_urls,
+                        # ✅ first image kept for backwards compat
+                        "imageUrl": image_urls[0] if image_urls else None,
                     })
                 return data
     except Exception as e:
@@ -119,7 +152,7 @@ def fetch_latest_transaction():
                 if not record:
                     return {}
 
-                filename = os.path.basename(record["image_path"]) if record["image_path"] else None
+                image_urls = build_image_urls(record["image_path"])
                 return {
                     "transaction_id": record["transaction_id"],
                     "name": record["name"],
@@ -133,8 +166,10 @@ def fetch_latest_transaction():
                     "bale": record["bale_count"],
                     "bag": record["bag_count"],
                     "trolley": record["trolley_count"],
-                    # ✅ updated
-                    "imageUrl": f"{IMAGE_BASE_URL}/{filename}" if filename else None
+                    # ✅ multiple images (new)
+                    "imageUrls": image_urls,
+                    # ✅ first image kept for backwards compat
+                    "imageUrl": image_urls[0] if image_urls else None,
                 }
     except Exception as e:
         logger.error(f"Database Error in fetch_latest_transaction: {e}", exc_info=True)
@@ -163,7 +198,7 @@ async def fetch_today_transactions():
                 results = cursor.fetchall()
                 data = []
                 for r in results:
-                    filename = os.path.basename(r["image_path"]) if r["image_path"] else None
+                    image_urls = build_image_urls(r["image_path"])
                     data.append({
                         "transaction_id": r["transaction_id"],
                         "name": r["name"],
@@ -177,8 +212,10 @@ async def fetch_today_transactions():
                         "bale": r["bale_count"],
                         "bag": r["bag_count"],
                         "trolley": r["trolley_count"],
-                        # ✅ updated
-                        "imageUrl": f"{IMAGE_BASE_URL}/{filename}" if filename else None
+                        # ✅ multiple images (new)
+                        "imageUrls": image_urls,
+                        # ✅ first image kept for backwards compat
+                        "imageUrl": image_urls[0] if image_urls else None,
                     })
                 return data
     except Exception as e:
@@ -263,8 +300,10 @@ async def fetch_data_grouped():
             "bale": record["bale"],
             "bag": record["bag"],
             "trolley": record["trolley"],
-            # already updated above
-            "imageUrl": record["imageUrl"]
+            # ✅ multiple images (new)
+            "imageUrls": record["imageUrls"],
+            # ✅ first image kept for backwards compat
+            "imageUrl": record["imageUrl"],
         })
 
     return grouped

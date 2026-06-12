@@ -1,0 +1,174 @@
+/* App.css - Premium Modern UI */
+body {
+  margin: 0;
+  font-family: "Poppins", Arial, sans-serif;
+  background: #000;
+  overflow-x: hidden;
+}
+
+/* ---------------- BACKGROUND IMAGE ---------------- */
+.app-container {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 25px;
+  overflow: hidden;
+}
+
+.app-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("/public/back.jpg");
+  background-size: cover;
+  background-position: center;
+  filter: blur(4px) brightness(0.5);
+  z-index: -1;
+}
+
+/* ---------------- CAMERA LABEL ---------------- */
+.video-display {
+  position: absolute;
+  top: 20px;
+  left: 30px;
+  font-size: 140px;
+  font-weight: 800;
+  font-family: monospace;
+  background-color: rgba(20, 20, 20, 0.65);
+  color: #00ff00;
+  padding: 8px 15px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+}
+
+/* ---------------- HEADER ---------------- */
+.app-header h1 {
+  color: #fff;
+  font-size: 2.2em;
+  text-align: center;
+  font-weight: 600;
+  margin-bottom: 30px;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+}
+
+/* ---------------- GLASS BOX FORM ---------------- */
+.form-container {
+  width: 90%;
+  max-width: 450px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 25px 30px;
+  border-radius: 18px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+
+/* ---------------- STATUS BOX ---------------- */
+.status-box {
+  background: rgba(255, 255, 255, 0.85);
+  padding: 12px;
+  margin-bottom: 18px;
+  border-radius: 10px;
+  border-left: 5px solid #3d8bfd;
+  color: #333;
+  font-size: 15px;
+  animation: fadeIn 0.25s ease-in-out;
+}
+
+/* ---------------- INPUT FIELDS ---------------- */
+.input-field {
+  padding: 12px 14px;
+  width: 100%;
+  margin-bottom: 15px;
+  border-radius: 10px;
+  border: 2px solid #ffffffcc;
+  background: rgba(255, 255, 255, 0.85);
+  color: #222;
+  font-size: 15px;
+  outline: none;
+  transition: 0.25s;
+}
+
+.input-field:focus {
+  border-color: #4a90ff;
+  box-shadow: 0 0 8px rgba(74, 144, 255, 0.4);
+}
+
+/* ---------------- VEHICLE INPUTS ---------------- */
+.vehicle-input-container {
+  display: flex;
+  gap: 10px;
+}
+
+.invalid {
+  border-color: red !important;
+}
+
+.error-message {
+  color: #ff4444;
+  font-size: 13px;
+  margin-top: -10px;
+  margin-bottom: 15px;
+}
+
+/* ---------------- BUTTONS ---------------- */
+.button-container {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+}
+
+.button {
+  flex: 1;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #fff;
+  font-weight: 600;
+  transition: 0.25s;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.25);
+}
+
+.start-button {
+  background: linear-gradient(135deg, #21c55d, #15803d);
+}
+
+.stop-button {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  opacity: 0.9;
+}
+
+.button:disabled {
+  background: #999 !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ---------------- MOBILE RESPONSIVE ---------------- */
+@media (max-width: 768px) {
+  .video-display {
+    font-size: 90px;
+    left: 15px;
+    top: 15px;
+  }
+}
+
+/* ---------------- ANIMATIONS ---------------- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=JL-CAM AI System Autostart
+After=graphical.target network.target
+Wants=graphical.target
+
+[Service]
+Type=oneshot
+User=smartclient
+ExecStartPre=/bin/sleep 60
+ExecStart=/usr/bin/sudo -n /usr/bin/python3 /opt/secure_ai/launcher.py
+StandardOutput=append:/var/log/smartcounter/autostart.log
+StandardError=append:/var/log/smartcounter/autostart.log
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical.target

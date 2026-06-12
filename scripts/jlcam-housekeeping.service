@@ -1,0 +1,6 @@
+[Unit]
+Description=JL-CAM Daily Housekeeping
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/jlcam_housekeeping.sh

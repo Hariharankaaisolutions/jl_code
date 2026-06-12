@@ -1,0 +1,11 @@
+# Ignore everything
+*
+
+# Allow only these file types
+!*.py
+!*.env
+!*.pt
+!*.properties
+
+# Allow this file itself
+!.gitignore

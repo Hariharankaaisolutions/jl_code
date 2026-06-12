@@ -9,13 +9,14 @@ from utils_config_loader import load_properties
 from logger import get_logger
 
 # Routers
-from modules.camera_backend import router as camera_router
-from modules.dash import router as dash_router
-from modules.dashboard import router as dashboard_router
-from modules.dbhost import router as dbhost_router
-from modules.registration import router as registration_router
-from modules.session import router as session_router
-from modules.webdata import router as webdata_router
+from modules.camera_backend    import router as camera_router
+from modules.dash              import router as dash_router
+from modules.dashboard         import router as dashboard_router
+from modules.dbhost            import router as dbhost_router
+from modules.registration      import router as registration_router
+from modules.session           import router as session_router
+from modules.webdata           import router as webdata_router
+from modules.edit_transaction  import router as edit_transaction_router   # ✅ NEW
 
 CONFIG = load_properties("config.properties")
 logger = get_logger("main")
@@ -26,7 +27,7 @@ app = FastAPI(
     description="Unified FastAPI backend combining camera, dashboard, registration, session and DB APIs."
 )
 
-# CORS – allow all for now (you can restrict to specific domains)
+# CORS – allow all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files mount for images (used by dashboards)
+# Static files mount for images
 IMAGE_DIR = CONFIG.get("IMAGE_DIR")
 if IMAGE_DIR and os.path.exists(IMAGE_DIR):
     app.mount("/images", StaticFiles(directory=IMAGE_DIR), name="images")
@@ -43,8 +44,7 @@ if IMAGE_DIR and os.path.exists(IMAGE_DIR):
 else:
     logger.warning("IMAGE_DIR not set or path does not exist. /images not mounted.")
 
-
-# Include all routers (no prefixes to keep paths similar to original)
+# Include all routers
 app.include_router(camera_router)
 app.include_router(dash_router)
 app.include_router(dashboard_router)
@@ -52,6 +52,7 @@ app.include_router(dbhost_router)
 app.include_router(registration_router)
 app.include_router(session_router)
 app.include_router(webdata_router)
+app.include_router(edit_transaction_router)   # ✅ NEW
 
 
 @app.get("/")
