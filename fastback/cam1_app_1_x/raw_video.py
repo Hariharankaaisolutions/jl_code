@@ -25,7 +25,7 @@ def start_raw_recording(transaction_id: str, rtmp_url: str):
     os.makedirs(save_dir, exist_ok=True)
 
     # Output file path
-    output_file = os.path.join(save_dir, f"{transaction_id}.mp4")
+    output_file = os.path.join(save_dir, f"{transaction_id}.ts")
 
     logger.info(f"🎥 Starting RAW RTMP recording → {output_file}")
 
@@ -34,7 +34,7 @@ def start_raw_recording(transaction_id: str, rtmp_url: str):
         "ffmpeg",
         "-i", rtmp_url,
         "-c", "copy",
-        "-f", "mp4",
+        "-f", "mpegts",
         output_file
     ]
 

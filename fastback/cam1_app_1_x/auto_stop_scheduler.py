@@ -400,34 +400,73 @@ async def _scheduler_loop():
             logger.info("AUTO_STOP_ENABLED turned off — skipping detection stop")
             continue
 
-        # ── Stop detection sessions only — raw recording keeps running ────────
+        # ── Stop ALL at AUTO_STOP_TIME: detection + segment recorder + processor + merge ──
+        from segment_recorder import stop_segment_recorder
+        from segment_processor import stop_segment_processor
+        from segment_merger import merge_in_background
+
         active_ids = list(session_manager.sessions.keys())
         stopped    = []
 
         for sid in active_ids:
             if session_manager.is_active(sid):
                 try:
+                    tx_id = session_manager.sessions[sid].get("transaction_id")
                     session_manager.stop_session(sid)
                     stopped.append(sid)
                     logger.info(f"Auto-stopped detection session: {sid}")
-                    # ✅ Raw recording is NOT stopped here intentionally.
-                    # It will be stopped by _raw_video_stop_scheduler_loop()
-                    # at RAW_VIDEO_AUTO_STOP_TIME.
+
+                    if tx_id:
+                        rec = None
+                        try:
+                            rec = stop_segment_recorder(tx_id)
+                            logger.info(f"Segment recorder auto-stopped tx={tx_id[:8]}")
+                        except Exception:
+                            logger.exception(f"Failed to stop segment recorder tx={tx_id[:8]}")
+
+                        proc = None
+                        try:
+                            logger.info(f"Draining segment processor tx={tx_id[:8]}")
+                            proc = stop_segment_processor(tx_id, drain=True)
+                            if proc:
+                                logger.info(
+                                    f"Segment processor auto-stopped tx={tx_id[:8]} "
+                                    f"counts={proc.counts} inferred={proc.inferred_segs}"
+                                )
+                        except Exception:
+                            logger.exception(f"Failed to stop segment processor tx={tx_id[:8]}")
+
+                        try:
+                            if rec and proc:
+                                raw_segs = rec.get_segments()
+                                inf_segs = proc.get_inferred_segments()
+                                merge_in_background(
+                                    transaction_id=tx_id,
+                                    date_dir=rec.get_date_dir(),
+                                    raw_segments=raw_segs,
+                                    inferred_segments=inf_segs,
+                                )
+                                logger.info(
+                                    f"Auto-stop merge started tx={tx_id[:8]} "
+                                    f"raw={len(raw_segs)} inf={len(inf_segs)}"
+                                )
+                        except Exception:
+                            logger.exception(f"Failed to start merge tx={tx_id[:8]}")
+
                 except Exception:
-                    logger.exception(f"Failed to auto-stop detection session: {sid}")
+                    logger.exception(f"Failed to auto-stop session: {sid}")
 
         logger.info(
-            f"Detection auto-stop complete at {stop_dt.strftime('%H:%M')} — "
-            f"{len(stopped)} session(s) stopped. Raw video still recording."
+            f"Full auto-stop complete at {stop_dt.strftime('%H:%M')} — "
+            f"{len(stopped)} session(s) stopped."
         )
 
         _send_auto_stop_mail(stopped, stop_dt)
-
         # Sleep 90s before looping (avoids double-trigger at the same minute)
         await asyncio.sleep(90)
 
 
-# ── Raw video scheduler loop ──────────────────────────────────────────────────
+# ── Raw video scheduler loop — DISABLED (raw video now stops with detection at AUTO_STOP_TIME) ──
 
 async def _raw_video_stop_scheduler_loop():
     while True:

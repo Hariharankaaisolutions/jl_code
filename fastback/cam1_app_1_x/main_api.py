@@ -16,6 +16,11 @@ from message_loader import Messages
 from main_config import RTMP_BASE_URL
 from main_session_guard import any_active_session_exists
 from main_detection import detect_objects
+from segment_recorder import start_segment_recorder, stop_segment_recorder, get_recorder
+from segment_processor import start_segment_processor, stop_segment_processor, get_processor
+from segment_merger import merge_in_background
+from jl_logger import get_logger as jl_get_logger
+_jl_logger = jl_get_logger("API")
 
 router = APIRouter()
 
@@ -140,20 +145,56 @@ async def start_detection(data: DetectionRequest):
             transaction_id=data.transaction_id,
         )
 
-        # ---- Start RAW Recording ----
+                # ---- Start Segment Recorder ----
+        rec_raw_dir = None
+        rec_date_dir = None
         try:
-            start_raw_recording(data.transaction_id, stream_url)
-            logger.info(
-                "RAW recording started for transaction=%s",
-                data.transaction_id
+            import os as _os
+            from datetime import datetime
+            date_str     = datetime.now().strftime("%Y-%m-%d")
+            from segment_recorder import VIDEO_BASE_DIR
+            rec_date_dir = _os.path.join(VIDEO_BASE_DIR, date_str)
+            rec_raw_dir  = start_segment_recorder(
+                transaction_id=data.transaction_id,
+                cam=data.video_url,
+            )
+            _jl_logger.info(
+                f"Segment recorder started → "
+                f"tx={data.transaction_id[:8]} dir={rec_raw_dir}"
             )
         except Exception:
-            logger.exception("Failed to start RAW RTMP recording")
+            _jl_logger.exception("Failed to start segment recorder")
 
-        # ---- Start Detection Task ----
-        asyncio.create_task(
-            detect_objects(stream_url, data.session_id)
-        )
+        # ---- Start Segment Processor ----
+        try:
+            if rec_raw_dir and rec_date_dir:
+                from mqtt_push import mqtt_push_counts
+
+                def _on_count(session_id, counts):
+                    try:
+                        session_manager.sessions[session_id]["counts"].update(counts)
+                        mqtt_push_counts(
+                            session_id=session_id,
+                            transaction_id=data.transaction_id,
+                            counts=counts,
+                        )
+                    except Exception as e:
+                        _jl_logger.error(f"on_count error: {e}", exc_info=True)
+
+                start_segment_processor(
+                    raw_dir=rec_raw_dir,
+                    date_dir=rec_date_dir,
+                    session_id=data.session_id,
+                    transaction_id=data.transaction_id,
+                    cam=data.video_url,
+                    on_count=_on_count,
+                )
+                _jl_logger.info(
+                    f"Segment processor started → "
+                    f"tx={data.transaction_id[:8]}"
+                )
+        except Exception:
+            _jl_logger.exception("Failed to start segment processor")
 
         logger.info(
             Messages.get(
@@ -223,16 +264,59 @@ async def stop_detection(data: StopRequest):
             data.session_id
         )
 
-        # ---- Stop RAW Recording ----
+        # ---- Stop Segment Recorder ----
+        rec = None
         try:
-            stop_raw_recording(data.transaction_id)
-            logger.info(
-                "RAW recording stopped for transaction=%s",
-                data.transaction_id
+            rec = stop_segment_recorder(data.transaction_id)
+            _jl_logger.info(
+                f"Segment recorder stopped → tx={data.transaction_id[:8]}"
             )
         except Exception:
-            logger.exception("Failed to stop RAW RTMP recording")
+            _jl_logger.exception("Failed to stop segment recorder")
 
+        # ---- Stop Segment Processor (drain all remaining segments) ----
+        proc = None
+        try:
+            proc = stop_segment_processor(data.transaction_id, drain=True)
+            if proc:
+                _jl_logger.info(
+                    f"Segment processor stopped → "
+                    f"tx={data.transaction_id[:8]} "
+                    f"counts={proc.counts} "
+                    f"inferred={proc.inferred_segs}"
+                )
+        except Exception:
+            _jl_logger.exception("Failed to stop segment processor")
+
+        # ---- Merge segments into full videos (background) ----
+        try:
+            if rec and proc:
+                raw_segs = rec.get_segments()
+                inf_segs = proc.get_inferred_segments()
+
+                def _on_merge_complete(result):
+                    _jl_logger.info(
+                        f"Merge complete → "
+                        f"tx={data.transaction_id[:8]} "
+                        f"raw_ok={result.get('raw_ok')} "
+                        f"inferred_ok={result.get('inferred_ok')}"
+                    )
+
+                merge_in_background(
+                    transaction_id=data.transaction_id,
+                    date_dir=rec.get_date_dir(),
+                    raw_segments=raw_segs,
+                    inferred_segments=inf_segs,
+                    on_complete=_on_merge_complete,
+                )
+                _jl_logger.info(
+                    f"Merge started → "
+                    f"tx={data.transaction_id[:8]} "
+                    f"raw_segs={len(raw_segs)} "
+                    f"inf_segs={len(inf_segs)}"
+                )
+        except Exception:
+            _jl_logger.exception("Failed to start segment merge")
         return {
             "message": "Detection stopped",
             "transaction_id": data.transaction_id
