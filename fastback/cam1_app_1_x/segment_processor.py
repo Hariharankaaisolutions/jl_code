@@ -351,12 +351,43 @@ class SegmentProcessor:
                 self.failed_segs += 1
                 return
 
-            # ── MOG2 background subtractor ───────────────
-            mog2 = cv2.createBackgroundSubtractorMOG2(
-                history=MOG2_HISTORY,
-                varThreshold=MOG2_VAR_THRESHOLD,
-                detectShadows=False
-            )
+            # ── Load exclusion zones ─────────────────────
+            import json as _json
+            _zone_path = os.path.join(os.path.dirname(__file__), "exclusion_zones.json")
+            _zones = []
+            if os.path.exists(_zone_path):
+                with open(_zone_path) as _f:
+                    _zones = _json.load(_f)
+                logger.info(f"Exclusion zones loaded: {len(_zones)} zones")
+            else:
+                logger.warning("No exclusion_zones.json found — using full frame")
+
+            # Build exclusion mask
+            _excl_mask = np.ones((height, width), dtype=np.uint8) * 255
+            for _zone in _zones:
+                _pts = np.array(_zone, dtype=np.int32)
+                cv2.fillPoly(_excl_mask, [_pts], 0)
+
+            # CUDA stream
+            _stream = cv2.cuda.Stream()
+
+            # ── MOG2 background subtractor (GPU) ─────────
+            try:
+                mog2 = cv2.cuda.createBackgroundSubtractorMOG2(
+                    history=MOG2_HISTORY,
+                    varThreshold=MOG2_VAR_THRESHOLD,
+                    detectShadows=True
+                )
+                use_gpu_mog2 = True
+                logger.info("MOG2 running on GPU ✅")
+            except Exception:
+                mog2 = cv2.createBackgroundSubtractorMOG2(
+                    history=MOG2_HISTORY,
+                    varThreshold=MOG2_VAR_THRESHOLD,
+                    detectShadows=False
+                )
+                use_gpu_mog2 = False
+                logger.warning("MOG2 falling back to CPU")
 
             # ── Load YOLOX model ─────────────────────────
             model_data = _get_yolox_model()
@@ -428,16 +459,38 @@ class SegmentProcessor:
                 # MOG2 motion check
                 try:
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    mask = mog2.apply(gray)
-                    motion_pixels = cv2.countNonZero(mask)
-                    has_motion = motion_pixels > MOG2_THRESHOLD
+                    if use_gpu_mog2:
+                        _gpu_gray = cv2.cuda_GpuMat()
+                        _gpu_gray.upload(gray)
+                        _gpu_mask = mog2.apply(_gpu_gray, -1, _stream)
+                        fg_mask = _gpu_mask.download()
+                    else:
+                        fg_mask = mog2.apply(gray)
+
+                    # Remove shadows
+                    _, fg_mask = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
+
+                    # Morphological cleanup
+                    _kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5,5))
+                    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, _kernel)
+                    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, _kernel)
+
+                    # Apply exclusion zones
+                    fg_filtered = cv2.bitwise_and(fg_mask, _excl_mask)
+
+                    # Check contours
+                    _contours, _ = cv2.findContours(fg_filtered,
+                        cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    _significant = [c for c in _contours
+                                   if cv2.contourArea(c) > 500]
+                    has_motion = len(_significant) > 0
+
                 except Exception as e:
                     logger.error(f"MOG2 error: {e} frame={frame_num}")
-                    has_motion = True  # process anyway on MOG2 failure
+                    has_motion = True
 
                 if not has_motion:
-                    writer.write(frame)  # write original frame without annotation
-                    continue
+                    continue  # skip non-motion frames
 
                 motion_count += 1
                 self.motion_frames += 1
@@ -463,6 +516,14 @@ class SegmentProcessor:
                         self.counts[k]   += v
                 except Exception as e:
                     logger.error(f"Crossing check error: {e} frame={frame_num}")
+
+                # Draw exclusion zones on frame
+                try:
+                    for _z in _zones:
+                        _zpts = np.array(_z, dtype=np.int32)
+                        cv2.polylines(inf_frame, [_zpts], True, (0, 0, 255), 1)
+                except Exception:
+                    pass
 
                 # Draw count line on frame
                 try:

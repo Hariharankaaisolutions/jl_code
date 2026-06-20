@@ -134,6 +134,12 @@ async def _start_session() -> tuple[bool, str, str]:
             return True, session_id, transaction_id
         else:
             body = resp.text[:200]
+            # If session already running — not an error, just return special flag
+            if resp.status_code == 400 and "already running" in body:
+                logger.info(
+                    f"Auto-session: session already running — will monitor existing session"
+                )
+                return None, "", ""
             logger.error(
                 f"Auto-session start failed → "
                 f"status={resp.status_code} body={body}"
@@ -273,6 +279,12 @@ async def _auto_start_loop():
         # Start session
         log_separator("AUTOSTART", f"SESSION {session_count + 1} STARTING")
         ok, sid, tid = await _start_session()
+
+        if ok is None:
+            # Session already running — wait and monitor
+            logger.info("Session already running — waiting 60s before checking again")
+            await asyncio.sleep(60)
+            continue
 
         if not ok:
             logger.error(

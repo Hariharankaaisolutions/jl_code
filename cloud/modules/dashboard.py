@@ -86,10 +86,12 @@ def fetch_data_from_postgres():
             FROM (
                 SELECT DISTINCT date
                 FROM transaction_db
+                WHERE user_id != 'autostart'
                 ORDER BY date DESC
                 LIMIT 7
             ) AS recent_dates
         )
+        AND user_id != 'autostart'
         ORDER BY date DESC;
     """
     try:
@@ -135,6 +137,7 @@ def fetch_latest_transaction():
         SELECT transaction_id, session_id, user_id, name, role, cam, vehicle_number,
         date, start_time, end_time, box_count, bale_count, bag_count, trolley_count, image_path, updated_at
         FROM transaction_db
+        WHERE user_id != 'autostart'
         ORDER BY updated_at DESC
         LIMIT 1;
     """
@@ -184,6 +187,7 @@ async def fetch_today_transactions():
                date, start_time, end_time, box_count, bale_count, bag_count, trolley_count, image_path, updated_at
         FROM transaction_db
         WHERE date = CURRENT_DATE
+        AND user_id != 'autostart'
         ORDER BY start_time ASC;
     """
     try:

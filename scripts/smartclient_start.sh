@@ -41,7 +41,7 @@ sleep 5
 # 5. CAM1 API (8000)
 # ------------------------------
 echo "Starting CAM1 API..."
-/bin/bash -c "source /opt/venv_y9/bin/activate; cd /opt/secure_ai/fastback/cam1_app_1_x; uvicorn main:app --host 0.0.0.0 --port 8000 > $LOG_DIR/cam1_api_log.txt 2>&1" &
+/bin/bash -c "source /opt/venv_y9/bin/activate; cd /opt/secure_ai; python3 -m uvicorn cam1.main:app --host 0.0.0.0 --port 8000 > $LOG_DIR/cam1_api_log.txt 2>&1" &
 sleep 5
 
 # ------------------------------
