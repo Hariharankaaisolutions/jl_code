@@ -21,6 +21,7 @@ from cam1.detection.mog2 import MOG2Filter
 from cam1.detection.yolox import infer, CLASS_NAMES
 from cam1.detection.tracker import ByteTrackCounter
 from cam1.detection.frame_saver import FrameSaver
+from cam1.recording.video_writer import DetectedVideoWriter
 
 logger = get_logger("DET")
 
@@ -50,6 +51,7 @@ class LiveDetector:
         self.mog2           = None
         self.tracker        = ByteTrackCounter()
         self.frame_saver    = FrameSaver(session_id, transaction_id)
+        self.video_writer   = DetectedVideoWriter(transaction_id)
         logger.info(LOG("DET.001.INFO",
             cam=cam, source=get("CAM1_RTMP_INPUT")))
 
@@ -66,6 +68,7 @@ class LiveDetector:
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=30)
+        self.video_writer.close()
         logger.info(LOG("DET.004.INFO",
             frames=self.frame_count, motion=self.motion_count))
 
@@ -137,8 +140,9 @@ class LiveDetector:
             # Check RL frames
             self.frame_saver.check_rl_frame(frame, detections, tracked)
 
-            # Annotate frame (for live preview if needed)
+            # Annotate and save to detected video
             self._annotate(frame, tracked)
+            self.video_writer.write(frame)
 
         cap.release()
 
