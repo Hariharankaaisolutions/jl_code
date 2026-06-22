@@ -8,8 +8,8 @@ Type=oneshot
 User=smartclient
 ExecStartPre=/bin/sleep 60
 ExecStart=/usr/bin/sudo -n /usr/bin/python3 /opt/secure_ai/launcher.py
-StandardOutput=append:/var/log/smartcounter/autostart.log
-StandardError=append:/var/log/smartcounter/autostart.log
+StandardOutput=append=/opt/secure_ai/logs/$(date +%Y-%m-%d)/jlcam.log
+StandardError=append=/opt/secure_ai/logs/$(date +%Y-%m-%d)/jlcam.log
 RemainAfterExit=yes
 
 [Install]

@@ -21,7 +21,7 @@ from scheduler.auto_stop import past_stop_time
 logger = get_logger("AUTO")
 
 ENABLED       = getbool("AUTOSTART_ENABLED",          True)
-DELAY_MINS    = getint("AUTO_START_DELAY_MINS",        10)
+DELAY_MINS    = getint("AUTO_START_DELAY_MINS",        0)
 AUTO_RESTART  = getbool("AUTO_START_RESTART",          True)
 RESTART_DELAY = getint("AUTO_START_RESTART_DELAY_SECS", 30)
 USER_ID       = get("AUTO_START_USER_ID",    "autostart")
@@ -87,7 +87,7 @@ async def _loop() -> None:
         logger.info(LOG("AUTO.012.INFO"))
         return
 
-    wait = DELAY_MINS * 60
+    wait = 10  # 10 seconds
     logger.info(LOG("AUTO.002.INFO", delay=DELAY_MINS,
         time=(datetime.now() + timedelta(seconds=wait)).strftime("%H:%M:%S")))
 

@@ -31,7 +31,7 @@ CAM1_VID     = get("CAM1_VIDEO_BASE_DIR", "/opt/secure_ai/cam1/video")
 CAM2_VID     = get("CAM2_VIDEO_BASE_DIR", "/opt/secure_ai/cam2/video")
 FRAMES_DIR   = get("DETECTED_FRAMES_DIR", "/opt/secure_ai/database/detected_frames")
 RL_DIR       = get("RL_SAVE_DIR",         "/opt/secure_ai/reinforcement_learning")
-LOG_DIR      = get("LOG_DIR",             "/var/log/smartcounter")
+LOG_DIR      = get("LOG_DIR", "/opt/secure_ai/logs")
 
 
 def _delete_old_files(folder: str, days: int, label: str) -> int:

@@ -161,6 +161,17 @@ async def start_detection(data: StartRequest):
 async def stop_detection(data: StopRequest):
     logger.info(LOG("API.003.INFO", session_id=data.session_id[:8]))
 
+    # Virtual session stop — check FIRST
+    for user_id, vs_data in vs._virtual.items():
+        if vs_data.get("transaction_id") == data.transaction_id:
+            active = session_manager.get_active_sessions()
+            real_counts = (session_manager.get_counts(active[0]["session_id"])
+                          if active else {})
+            result = vs.stop(user_id, real_counts)
+            if result:
+                return {"message": "Detection stopped",
+                        "transaction_id": data.transaction_id}
+
     # Auto session stop
     if session_manager.exists(data.session_id):
         detector = _detectors.pop(data.session_id, None)

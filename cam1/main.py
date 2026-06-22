@@ -33,6 +33,31 @@ async def lifespan(app: FastAPI):
     logger.info(LOG("API.001.INFO", cam="cam1", port=PORT))
     logger.info(LOG("SYS.001.INFO"))
 
+    # Close orphan open sessions from previous runs
+    try:
+        import psycopg2
+        from core.config import get
+        conn = psycopg2.connect(
+            host=get("DB_HOST","localhost"), port=int(get("DB_PORT","5432")),
+            user=get("DB_USER","kaai"), password=get("DB_PASSWORD","kaai123"),
+            dbname=get("DB_NAME","jlmill")
+        )
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE transaction_db
+            SET end_time = start_time
+            WHERE date = CURRENT_DATE
+              AND end_time IS NULL
+              AND name = 'AutoStarter'
+        """)
+        closed = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"Startup cleanup: closed orphan sessions → {closed}")
+    except Exception as e:
+        logger.warning(f"Startup cleanup failed: {e}")
+
     # Start background services
     start_metrics()
     start_auto()

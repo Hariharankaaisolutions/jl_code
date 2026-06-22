@@ -28,6 +28,10 @@ def _load_log_cfg() -> dict:
 
 
 _cfg      = _load_log_cfg()
+
+# Disable root logger to prevent duplicate output
+logging.getLogger().handlers.clear()
+logging.getLogger().setLevel(logging.WARNING)
 _loggers: dict[str, logging.Logger] = {}
 
 LOG_DIR     = _cfg.get("LOG_DIR",    "/var/log/smartcounter")
@@ -42,9 +46,10 @@ LOG_CONSOLE = _cfg.get("LOG_CONSOLE", "true").lower() == "true"
 
 
 def _get_log_path() -> str:
-    os.makedirs(LOG_DIR, exist_ok=True)
     date_str = datetime.now().strftime("%Y-%m-%d")
-    return os.path.join(LOG_DIR, f"{LOG_PREFIX}_{date_str}.log")
+    date_dir = os.path.join(LOG_DIR, date_str)
+    os.makedirs(date_dir, exist_ok=True)
+    return os.path.join(date_dir, f"{LOG_PREFIX}.log")
 
 
 def _get_level(name: str) -> int:
@@ -64,6 +69,8 @@ def get_logger(name: str) -> logging.Logger:
     logger    = logging.getLogger(name)
     level     = _get_level(name)
     logger.setLevel(level)
+    # Clear existing handlers to prevent duplicates on restart
+    logger.handlers.clear()
     formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATE)
 
     # Rotating file handler

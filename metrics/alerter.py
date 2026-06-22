@@ -13,6 +13,11 @@ from core.mailer import send_metric_alert
 
 logger = get_logger("METRICS")
 
+# Alert cooldown — send each alert max once per 30 minutes
+import time
+_last_alert: dict[str, float] = {}
+ALERT_COOLDOWN_SECS = 1800  # 30 minutes
+
 # ── Thresholds ─────────────────────────────────────────────────
 T_CPU_PCT   = getfloat("CPU_ALERT_THRESHOLD",  80)
 T_CPU_TEMP  = getfloat("CPU_TEMP_THRESHOLD",   85)
@@ -50,6 +55,12 @@ def _alert(enabled: bool, log_code: str, metric: str,
            value, threshold, unit: str = "%", **kw) -> None:
     if not enabled:
         return
+    now = time.time()
+    last = _last_alert.get(metric, 0)
+    if now - last < ALERT_COOLDOWN_SECS:
+        logger.warning(LOG(log_code, value=value, threshold=threshold, **kw))
+        return
+    _last_alert[metric] = now
     logger.warning(LOG(log_code, value=value, threshold=threshold, **kw))
     send_metric_alert(metric, value, threshold, unit)
 

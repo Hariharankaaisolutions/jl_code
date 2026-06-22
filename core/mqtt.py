@@ -85,7 +85,7 @@ def publish_boot(cam: str = "cam_1") -> None:
 
 
 def publish_counts(session_id: str, transaction_id: str, counts: dict) -> None:
-    publish(f"{TOPIC_BASE}{session_id}/counts", {
+    publish(f"{TOPIC_BASE}{session_id}/{transaction_id}/counts", {
         "session_id": session_id,
         "transaction_id": transaction_id,
         "counts": counts,

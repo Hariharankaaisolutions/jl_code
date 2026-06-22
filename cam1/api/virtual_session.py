@@ -16,6 +16,7 @@ from core.config import get
 from core.logger import get_logger
 from core.log_codes import get as LOG
 from core.db_transaction import insert_transaction, end_transaction
+from core.mqtt import publish_counts
 
 logger = get_logger("SESS")
 
@@ -81,6 +82,22 @@ def start(
         logger.info(LOG("SESS.014.INFO",
             user_id=user_id, snapshot=real_counts))
         return True
+
+
+def publish_virtual_counts(real_counts: dict) -> None:
+    """Publish offset counts for all active virtual sessions via MQTT."""
+    for user_id, s in _virtual.items():
+        if not s.get("active"):
+            continue
+        offset = {
+            k: max(0, real_counts.get(k, 0) - s["snapshot"].get(k, 0))
+            for k in DEFAULT
+        }
+        publish_counts(
+            session_id=s["session_id"],
+            transaction_id=s["transaction_id"],
+            counts=offset
+        )
 
 
 def get_counts(user_id: str, real_counts: dict) -> dict:

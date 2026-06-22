@@ -40,8 +40,9 @@ class FrameSaver:
         self.last_save_time = 0.0
         self.image_paths:   list[str] = []
 
-    def save_detected_frame(self, frame, trolley_window: float = 3.0) -> str:
-        """Save frame when object crosses line. One per trolley window."""
+    def save_detected_frame(self, frame, trolley_window: float = 3.0,
+                             tracked=None, counts: dict = None) -> str:
+        """Save annotated frame when object crosses line. One per trolley window."""
         now = time.time()
         if now - self.last_save_time < trolley_window:
             logger.debug(LOG("FRAME.005.DEBUG"))
@@ -50,7 +51,8 @@ class FrameSaver:
             self.trip_count    += 1
             filename            = f"{self.session_id}_trip{self.trip_count}_1.jpg"
             path                = os.path.join(FRAMES_DIR, filename)
-            cv2.imwrite(path, frame)
+            annotated           = self._annotate(frame.copy(), tracked, counts)
+            cv2.imwrite(path, annotated)
             self.last_save_time = now
             self.image_paths.append(path)
             logger.info(LOG("FRAME.001.INFO",
@@ -99,6 +101,38 @@ class FrameSaver:
     def get_image_paths_json(self) -> str:
         """Return JSON string of all saved image paths."""
         return json.dumps(self.image_paths) if self.image_paths else None
+
+    def _annotate(self, frame, tracked=None, counts: dict = None) -> 'np.ndarray':
+        """Draw bounding boxes, labels and count line on frame."""
+        import numpy as np
+        # Draw count line
+        cv2.line(frame, (CROSS_LINE, 0), (CROSS_LINE, frame.shape[0]),
+                 (0, 255, 0), 2)
+        cv2.putText(frame, "COUNT LINE", (CROSS_LINE + 5, 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        # Draw tracked boxes
+        if tracked is not None and tracked.tracker_id is not None:
+            for xyxy, tid, cid, conf in zip(
+                tracked.xyxy, tracked.tracker_id,
+                tracked.class_id, tracked.confidence
+            ):
+                x1, y1, x2, y2 = map(int, xyxy)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                from cam1.detection.yolox import CLASS_NAMES
+                label = CLASS_NAMES.get(int(cid), "unknown")
+                cv2.putText(frame, f"{label} {conf:.2f}",
+                    (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (0, 255, 255), 1)
+        # Draw counts
+        if counts:
+            y = 30
+            for cls, cnt in counts.items():
+                if cnt > 0:
+                    cv2.putText(frame, f"{cls}: {cnt}",
+                        (10, y), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7, (0, 0, 255), 2)
+                    y += 25
+        return frame
 
     def cleanup(self) -> None:
         logger.info(LOG("FRAME.006.INFO",
